@@ -1,13 +1,18 @@
 from abc import abstractmethod
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, Executor
 from threading import Thread, Lock
 from typing import Any, Callable, Sized
+
 
 class Task:
     _lock: Lock = Lock()
     _done = False
-    _callback = None
+    _future = None
+    _executor = None
     result = None
+
+    def __init__(self, exec: Executor):
+        self._executor = exec
 
     @abstractmethod
     def __call__(self, *args, **kwargs):
@@ -24,17 +29,17 @@ class Task:
             callback(res)
 
     def fork(self):
-        Thread(target=self).start()
+        self._future = self._executor.submit(self)
         return self
 
     def join(self, callback: Callable[[Any], None]):
-        if self._callback is not None:
+        if self._future is None:
             raise Exception("Already joined once")
 
         self._lock.acquire()
         done = self._done
         res = self.result
-        self._callback = callback
+        self._future.add_done_callback(callback)
         self._lock.release()
 
         if done:
@@ -55,8 +60,8 @@ class MyTask(Task):
             p1 = MyTask(self._dataset, self._start, round(self._start + dataset_len / 2))
             p2 = MyTask(self._dataset, round(self._start + dataset_len / 2), self._end).fork()
 
-            p1()
-            p2.join(lambda p2_result: self.__done__(p1.result + p2_result))
+            p1.join(lambda p1_result: p2.join(lambda p2_result: self.__done__(p1_result + p2_result)))
+
 
 
 if __name__ == '__main__':

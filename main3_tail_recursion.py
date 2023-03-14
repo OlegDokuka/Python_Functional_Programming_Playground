@@ -30,7 +30,7 @@ def fib_imperative(n: int) -> int:
 
 
 # solution
-# @tail_call_optimized
+@tail_call_optimized
 def fib_helper(depth: int, step: int, current: int, previous: int) -> int:
     if depth == step:
         return current

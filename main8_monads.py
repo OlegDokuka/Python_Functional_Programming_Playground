@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Callable, Any
+from typing import TypeVar, Generic, Callable, Any, Tuple
 
 T = TypeVar("T")
 R = TypeVar("R", contravariant=True)
@@ -47,6 +47,12 @@ class Optional(Generic[T]):
         else:
             return Nothing()
 
+    def zip(self, another: 'Optional[R]') -> 'Optional[Tuple[T,R]]':
+        if self.is_present() and another.is_present():
+            return self.__factory__((self.value(), another.value()))
+        else:
+            return Nothing()
+
 
 class Nothing(Optional[T]):
     def is_present(self) -> bool:
@@ -72,13 +78,19 @@ def do_my_processing_over_optional(o_value: Optional[str]) -> Optional[int]:
     return o_value.map(lambda x: int(x))
 
 
+def do_my_processing_over_optional_1(o_value: Optional[int]) -> Optional[int]:
+    return o_value.flat_map(lambda value: Optional.of(str(value))) \
+        .filter(lambda value: len(value) >= 3) \
+        .map(lambda value: int(value))
+
+
 if __name__ == '__main__':
-    o = Optional.of(123)\
+    # value.transform(do_my_processing_over_optional)
+    o = Optional.of(123) \
         .map(lambda value: str(value)) \
         .transform(do_my_processing_over_optional) \
-        .flat_map(lambda value: Optional.of(str(value))) \
-        .filter(lambda value: len(value) >= 3) \
-        .map(lambda value: int(value)) \
-        .peek(lambda value: print(f"after all {value}"))
+        .transform(do_my_processing_over_optional_1) \
+        .peek(lambda value: print(f"after all {value}")) \
+        .zip(Optional.of("312"))
 
     if o.is_present(): print(o.value())
