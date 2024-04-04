@@ -1,6 +1,6 @@
 from typing import Callable
 
-log_level = "debug"
+log_level = "info"
 
 
 # def log_info(line: str):

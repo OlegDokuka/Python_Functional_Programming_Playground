@@ -1,5 +1,4 @@
-from functools import reduce
-from typing import List, Callable, Tuple, Any, Union
+from typing import Callable, Tuple, Any
 
 from reactivex import Observable, operators as ops
 
@@ -31,6 +30,7 @@ def process(source: Observable[Message[float]], average_interval_setting: Observ
     calculate_avg: Callable[[tuple[int, float]], Any] = lambda result: result[1] / result[0]
 
     return average_interval_setting.pipe(
+        ops.start_with(30),
         ops.map(lambda interval_setting:
                 source.pipe(ops.window_with_time(interval_setting),
                             ops.flat_map(lambda window: window.pipe(

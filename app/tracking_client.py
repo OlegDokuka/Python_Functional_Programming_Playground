@@ -1,25 +1,25 @@
 import asyncio
+from concurrent.futures import Future
 from typing import Union, Any, Coroutine
 
 import reactivex
-import socketio  # type: ignore
+import socketio
 from reactivex import Observable
+from reactivex import create
 from reactivex.abc import ObserverBase
+from reactivex import operators as ops
 from reactivex.disposable import Disposable
+from reactivex.scheduler.eventloop import AsyncIOScheduler
 
 from app.unpackers import unpack_trade, unpack_price
 
 
 def connect(subscription_loop: asyncio.AbstractEventLoop) -> Observable[dict[str, Union[str, float]]]:
     def on_subscribe(observer: ObserverBase[dict[str, Union[str, float]]], scheduler):
-        print("subscribed")
-        # we need to call threadsafe run because asyncio loop will not see the scheduled work
-        subscription_task = asyncio.run_coroutine_threadsafe(_connect_to_cryptocompare(observer), loop=subscription_loop)
+        task: Future[None] = asyncio.run_coroutine_threadsafe(_connect_to_cryptocompare(observer), loop=subscription_loop)
 
-        return Disposable(lambda: subscription_task.cancel())
-
-    # "https://streamer.cryptocompare.com"
-    return reactivex.create(on_subscribe)
+        return Disposable(lambda: print(task.cancel()))  # type: ignore
+    return create(on_subscribe).pipe(ops.subscribe_on(AsyncIOScheduler(subscription_loop)))
 
 
 async def _connect_to_cryptocompare(observer: ObserverBase[dict[str, Union[str, float]]]):
@@ -28,13 +28,17 @@ async def _connect_to_cryptocompare(observer: ObserverBase[dict[str, Union[str, 
     @sio.on("m")
     def handle_message(message: str):
         message_type = message[0: message.index("~")]
+        try:
+            if message_type == "0":
+                unpacked_message = unpack_trade(message)
+                observer.on_next(unpacked_message)
+            elif message_type == "5":
+                unpacked_message = unpack_price(message)
+                observer.on_next(unpacked_message)
+        except Exception as e:
+            pass
 
-        if message_type == "0":
-            observer.on_next(unpack_trade(message))
-        elif message_type == "5":
-            observer.on_next(unpack_price(message))
-
-    await sio.connect("https://streamer.cryptocompare.com")
+    await sio.connect("https://streamer.cryptocompare.com", transports='websocket')
     await sio.emit("SubAdd", data={"subs": ["5~CCCAGG~BTC~USD", "0~Coinbase~BTC~USD", "0~Cexio~BTC~USD"]})
 
     try:

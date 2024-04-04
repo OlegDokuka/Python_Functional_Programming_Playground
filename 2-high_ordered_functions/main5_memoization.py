@@ -17,8 +17,8 @@ def memoize(pure_fn: Callable[[int], int]) -> Callable[[int], int]:
 
 
 # @memoize
-def fib(n: int) -> int:
-    return n if n < 2 else (fib(n - 1) + fib(n - 2))
+# def fib(n: int) -> int:
+#     return n if n < 2 else (fib(n - 1) + fib(n - 2))
 
 
 # solution
@@ -36,9 +36,9 @@ def fib(n: int) -> int:
 #     return wrapper
 #
 #
-# @memoiz
-# def fib(n: int) -> int:
-#     return n if n < 2 else (fib(n - 1) + fib(n - 2))
+# @cache
+def fib(n: int) -> int:
+    return n if n < 2 else (fib(n - 1) + fib(n - 2))
 
 
 

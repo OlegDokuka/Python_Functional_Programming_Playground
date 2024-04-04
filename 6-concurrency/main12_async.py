@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import Future, ProcessPoolExecutor
 
 
 async def factorial(name, number):
@@ -19,7 +20,6 @@ async def main():
         factorial("C", 4),
     )
 
-    asyncio.wrap_future()
 
     print(L)
 

@@ -35,7 +35,9 @@ def fib_helper(depth: int, step: int, current: int, previous: int) -> int:
     if depth == step:
         return current
     else:
-        return fib_helper(depth, step + 1, current + previous, current)
+        next_value = current + previous
+        previous_value = current
+        return fib_helper(depth, step + 1, next_value, previous_value)
 
 
 def fib_fn(n: int) -> int:

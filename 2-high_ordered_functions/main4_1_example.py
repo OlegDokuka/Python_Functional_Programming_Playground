@@ -15,5 +15,5 @@ if __name__ == '__main__':
 
     # add print('calc') or
     if log_level == "info":
-        log_line = f"my evaluated string {print('calc') or b} + {a}"
+        log_line = f"my evaluated string {print('call_here') or b} + {a}"
         log_info(log_line)

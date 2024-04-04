@@ -28,11 +28,18 @@ def main(loop):
     # (reactivex.create(on_subscribe).subscribe(on_next=print, on_completed=lambda: print("done")))
 
     source: Observable[int] = reactivex.interval(1)  # type: ignore
-    def flatten(i):
+
+    def prefetch_data(i) -> Observable[dict]:
         print(i)
-        # return reactivex.create(on_subscribe)
-        return reactivex.from_future(asyncio.run_coroutine_threadsafe(fetch_data(), loop=loop))
-    (source.pipe(ops.flat_map(flatten)).subscribe(on_next=print))
+        return reactivex.create(on_subscribe)
+        # return reactivex.from_future(asyncio.run_coroutine_threadsafe(fetch_data(), loop=loop))
+
+
+    (source.pipe(
+        ops.flat_map(prefetch_data),
+        ops.observe_on()
+
+    ).subscribe(on_next=print))
 
 
 if __name__ == '__main__':

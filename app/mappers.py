@@ -53,7 +53,7 @@ MARKET_KEY = "MARKET"
 FLAGS_KEY = "FLAGS"
 
 
-def map_to_price_message(event):
+def map_to_price_message(event) -> Message[float]:
     """ generated source for method mapToPriceMessage """
     return Message.price((event.get(PRICE_KEY)), str(event.get(CURRENCY_KEY)),
                          str(event.get(MARKET_KEY)))

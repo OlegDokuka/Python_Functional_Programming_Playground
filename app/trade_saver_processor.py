@@ -17,33 +17,6 @@ scheduler = scheduler.ThreadPoolScheduler(1)
 connection_observable: Observable[Connection] = (reactivex.from_callable(lambda: sqlite3.connect('test.db'))
                                                  .pipe(ops.subscribe_on(scheduler)))
 
-
-#
-# _T = TypeVar("_T")
-#
-# def with_connection(fn: Callable[[Observable[Connection]], Observable[_T]]) -> Callable[[Observable[Connection]], Observable[_T]]:
-#
-#
-#
-#     def _call(obs: Observable[Connection]) -> Observable[_T]:
-#
-#
-#
-#
-#         def on_subscribe(base: Observer[_T], scheduler):
-#             def on_next(c: Connection):
-#                 fn(reactivex.of(c))
-#             def on_complete():
-#
-#             def on_error(e: Exception):
-#             obs.subscribe(o)
-#
-#
-#         return reactivex.create(on_subscribe)
-#
-#     return _call
-
-
 def execute(cmd: str) -> Callable[[Observable[Connection]], Observable[Connection]]:
     return lambda cn_obs: cn_obs.pipe(ops.flat_map(_ex(cmd)),
                                       ops.map(lambda cu: cu.connection))

@@ -1,43 +1,16 @@
+import sqlite3
 import time
 from sqlite3 import Connection, Cursor, Row
-from typing import Union, Callable, TypeVar
+from typing import Union, Callable
 
 import expression
 import reactivex
-from reactivex import Observable, operators as ops, scheduler, Observer
-from reactivex.abc import ObserverBase
+from reactivex import Observable, operators as ops, scheduler
 
-from app.mappers import is_price_message_type, Message, is_valid_price_message, map_to_price_message, \
-    is_trade_message_type, map_to_trade_message
-
-import sqlite3
+from app.mappers import Message, is_trade_message_type, map_to_trade_message
 
 connection_observable: Observable[Connection] = (reactivex.from_callable(lambda: sqlite3.connect('test.db'))
                                                  .pipe(ops.subscribe_on(scheduler.NewThreadScheduler())))
-#
-# _T = TypeVar("_T")
-#
-# def with_connection(fn: Callable[[Observable[Connection]], Observable[_T]]) -> Callable[[Observable[Connection]], Observable[_T]]:
-#
-#
-#
-#     def _call(obs: Observable[Connection]) -> Observable[_T]:
-#
-#
-#
-#
-#         def on_subscribe(base: Observer[_T], scheduler):
-#             def on_next(c: Connection):
-#                 fn(reactivex.of(c))
-#             def on_complete():
-#
-#             def on_error(e: Exception):
-#             obs.subscribe(o)
-#
-#
-#         return reactivex.create(on_subscribe)
-#
-#     return _call
 
 
 def execute(cmd: str) -> Callable[[Observable[Connection]], Observable[Connection]]:
@@ -72,7 +45,8 @@ if __name__ == "__main__":
                 amount float,
                 currency varchar(8),
                 market varchar(64))'''),
-        execute("INSERT INTO trades (id, trade_timestamp, price, amount, currency, market) VALUES ($1, $2, $3, $4, $5, $6)"),
+        execute(
+            "INSERT INTO trades (id, trade_timestamp, price, amount, currency, market) VALUES ($1, $2, $3, $4, $5, $6)"),
         commit(),
         query("SELECT * FROM Employees"))
      .subscribe(on_next=print, on_completed=lambda: print("done"), on_error=lambda e: print(e)))

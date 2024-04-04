@@ -4,14 +4,14 @@ import os.path
 from typing import Any, Union
 
 import reactivex
-import socketio  # type: ignore
 import tornado.escape
 import tornado.options
 import tornado.web
 import tornado.websocket
 from reactivex import operators as ops, Subject, Observable
+from reactivex.abc import DisposableBase
 from reactivex.scheduler.eventloop import AsyncIOScheduler
-from reactivex.subject import AsyncSubject, BehaviorSubject
+from reactivex.subject import ReplaySubject
 from tornado.options import define
 
 from app import price_processor, avg_price_processor, trade_processor, trade_saver_processor
@@ -23,8 +23,10 @@ define("port", default=8080, help="run on the given port", type=int)
 
 class Application(tornado.web.Application):
     def __init__(self):
-        StreamSocketHandler.messages_sub = Subject()
-        handlers = [(r"/", MainHandler), (r"/stream", StreamSocketHandler)]
+        inbound_msg = Subject()  # through this subject clients may send tick size configuration changes
+        outbound_msg = ReplaySubject(20)  # cache 20 last messages
+        handlers = [(r"/", MainHandler),
+                    (r"/stream", StreamSocketHandler, {'inbound_msg': inbound_msg, 'outbound_msg': outbound_msg})]
         settings = dict(
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
             template_path=os.path.join(os.path.dirname(__file__), "ui"),
@@ -38,10 +40,10 @@ class Application(tornado.web.Application):
         def price_processing_flow(source_of_msg: Observable[dict[str, Union[str, float]]]) -> Observable[Message]:
             return source_of_msg.pipe(
                 price_processor.process,
-                ops.share(),
+                ops.share(),  # enable multiple subscriber to consume the same processed prices stream
                 lambda source_of_prices: reactivex.merge(source_of_prices,
                                                          avg_price_processor.process(source_of_prices,
-                                                                                     StreamSocketHandler.messages_sub))
+                                                                                     inbound_msg))
             )
 
         def trade_processing_flow(source_of_msg: Observable[dict[str, Union[str, float]]]) -> Observable[Message]:
@@ -52,14 +54,16 @@ class Application(tornado.web.Application):
                                                          trade_saver_processor.save(source_of_prices))
             )
 
-        disposable = (connect(loop)
-                      .pipe(ops.retry(),
-                            ops.share(),
-                            lambda source_of_msg: reactivex.merge(
-                                price_processing_flow(source_of_msg),
-                                trade_processing_flow(source_of_msg)),
-                            ops.observe_on(AsyncIOScheduler(loop=loop)))
-                      .subscribe(on_next=StreamSocketHandler.send_updates))
+        (connect(loop)
+         .pipe(
+            ops.retry(),  # reconnect on client connection failure
+            ops.share(),  # enable multiple subscriber to consume the same client connection
+            lambda source_of_msg: reactivex.merge(
+                price_processing_flow(source_of_msg),
+                trade_processing_flow(source_of_msg)),
+            ops.observe_on(AsyncIOScheduler(loop=loop)),
+            ops.do_action(on_next=print, on_error=print))
+         .subscribe(outbound_msg))
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -68,13 +72,17 @@ class MainHandler(tornado.web.RequestHandler):
         return False
 
     def get(self):
-        self.render("index.html", messages=StreamSocketHandler.cache)
+        self.render("index.html")
 
 
 class StreamSocketHandler(tornado.websocket.WebSocketHandler):
-    waiters: set[Any] = set()
-    cache: list[Any] = []
-    cache_size = 200
+    subscription: DisposableBase
+    inbound_msg: Subject[int]
+    outbound_msg: Subject[Message[Any]]
+
+    def initialize(self, inbound_msg: Subject[int], outbound_msg: Subject[Message[Any]]):
+        self.inbound_msg = inbound_msg
+        self.outbound_msg = outbound_msg
 
     def check_origin(self, origin: str) -> bool:
         return True
@@ -84,43 +92,26 @@ class StreamSocketHandler(tornado.websocket.WebSocketHandler):
         return {}
 
     def open(self):
-        StreamSocketHandler.waiters.add(self)
+        self.subscription = self.outbound_msg.subscribe(on_next=lambda msg: self.send_updates(msg))
 
     def on_close(self):
-        StreamSocketHandler.waiters.remove(self)
+        self.subscription.dispose()
 
-    @classmethod
-    def update_cache(cls, chat):
-        cls.cache.append(chat)
-        if len(cls.cache) > cls.cache_size:
-            cls.cache = cls.cache[-cls.cache_size:]
-
-    @classmethod
-    def send_updates(cls, msg: Message):
-        logging.info("sending message to %d waiters", len(cls.waiters))
-        for waiter in cls.waiters:
-            try:
-                waiter.write_message({
-                    'timestamp': msg.timestamp,
-                    'data': {'price': msg.data.price, 'amount': msg.data.amount} if isinstance(msg.data,
-                                                                                               Trade) else msg.data,
-                    'currency': msg.currency,
-                    'market': msg.market,
-                    'type': msg.type.name}, binary=False)
-            except:
-                logging.error("Error sending message", exc_info=True)
+    def send_updates(self, msg: Message[Any]):
+        try:
+            self.write_message({
+                'timestamp': msg.timestamp,
+                'data': {'price': msg.data.price, 'amount': msg.data.amount} if isinstance(msg.data,
+                                                                                           Trade) else msg.data,
+                'currency': msg.currency,
+                'market': msg.market,
+                'type': msg.type.name}, binary=False)
+        except:
+            logging.error("Error sending message", exc_info=True)
 
     def on_message(self, message):
         logging.info("got message %r", message)
-        StreamSocketHandler.messages_sub.on_next(int(message))
-        # parsed = tornado.escape.json_decode(message)
-        # chat = {"id": str(uuid.uuid4()), "body": parsed["body"]}
-        # chat["html"] = tornado.escape.to_basestring(
-        #     self.render_string("message.html", message=chat)
-        # )
-        #
-        # ChatSocketHandler.update_cache(chat)
-        # ChatSocketHandler.send_updates(chat)
+        self.inbound_msg.on_next(int(message))
 
 
 async def main():
@@ -132,26 +123,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-# async def main():
-#     disposable = (connect(asyncio.get_running_loop())
-#                   .pipe(price_processor.process,
-#                         ops.do_action(on_next=print))
-#                   .subscribe())
-#
-#     await asyncio.sleep(5)
-#
-#     disposable.dispose()
-#
-#
-# if __name__ == '__main__':
-#     loop = asyncio.get_event_loop()
-#
-#     # Schedule a call to hello_world()
-#     loop.create_task(main())
-#
-#     # Blocking call interrupted by loop.stop()
-#     try:
-#         loop.run_forever()
-#     finally:
-#         loop.close()

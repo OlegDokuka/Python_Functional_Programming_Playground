@@ -1,4 +1,6 @@
 import asyncio
+from typing import Generator
+
 import aiohttp
 from aiohttp import ClientSession
 
@@ -10,9 +12,11 @@ async def fetch_data(session: ClientSession):
 
 async def populate_db(json):
     return await asyncio.sleep(1)
+async def populate_db2(json):
+    return await asyncio.sleep(1)
 
 
-async def stream_data():
+async def stream_data() -> Generator[dict]:
     async with aiohttp.ClientSession() as session:
         while True:
             yield await fetch_data(session)
@@ -23,8 +27,7 @@ async def main():
     # Schedule three calls *concurrently*:
     async for result in stream_data():
         print(result)  ## assume this is an analysis step
-        result = await populate_db(result)
-        result = await populate_db(result)
+        await asyncio.gather(populate_db(result), populate_db2(result))
         print(result)
 
 

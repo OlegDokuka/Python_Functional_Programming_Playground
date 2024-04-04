@@ -28,9 +28,9 @@ def fib_fn(n: int) -> int:
 
 if __name__ == '__main__':
     print(f"[{datetime.now().strftime('%H:%M:%S')}] start")
-    res = fib_imperative(60)
+    res = fib_imperative(40)
     print(f"[{datetime.now().strftime('%H:%M:%S')}] imperative {res}")
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] start")
-    res = fib_fn(60)
+    res = fib_fn(40)
     print(f"[{datetime.now().strftime('%H:%M:%S')}] fn {res}")
