@@ -1,19 +1,9 @@
 from functools import reduce
 from typing import TypeVar, Generic, Callable, Any, overload
 
-T = TypeVar("T")
-R = TypeVar("R", covariant=True)
-R1 = TypeVar("R1", covariant=True)
-R2 = TypeVar("R2", covariant=True)
-R3 = TypeVar("R3", covariant=True)
-R4 = TypeVar("R4", covariant=True)
-R5 = TypeVar("R5", covariant=True)
-R6 = TypeVar("R6", covariant=True)
-R7 = TypeVar("R7", covariant=True)
-R8 = TypeVar("R8", covariant=True)
 
 
-class Optional(Generic[T]):
+class Optional[T]:
     def __init__(self) -> None:
         return
 
@@ -134,9 +124,9 @@ def zip_with(other: "Optional[R]") -> Callable[[Optional[T]], "Optional[(T, R)]"
 if __name__ == '__main__':
     o: Optional[(str, str)] = Optional.of(123) \
         .pipe(
-        map(str),
-        map(lambda input: isinstance(input, str)),
-        zip_with(Optional.of("312"))
-    )
+            map(str),
+            map(lambda input: isinstance(input, str)),
+            zip_with(Optional.of("312"))
+        )
 
     if o.is_present(): print(o.get())

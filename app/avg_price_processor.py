@@ -1,46 +1,52 @@
-from typing import Callable, Tuple, Any
+import time
+from typing import Callable, Tuple, Any, AsyncIterable, List
 
+from future.backports.datetime import timedelta
 from reactivex import Observable, operators as ops
 
 from app.mappers import Message
 
 
-def process(source: Observable[Message[float]], average_interval_setting: Observable[float]) -> Observable[
-    Message[float]]:
-    # stream: AsyncIterable[Message[float]]
-    # queue: list[Message[float]] = []
-    # async for message in stream:
-    #     if len(queue) > 0 and message.timestamp - queue[0].timestamp > 30_000:
-    #         total = 0
-    #         for stored in queue:
-    #             total += stored.data
-    #
-    #         yield total / len(queue)
-    #     else:
-    #         queue.append(message)
+def process(source: Observable[Message[float]], average_interval_setting: Observable[float]) -> Observable[Message[float]]:
 
-    reducer_fn: Callable[[tuple[int, float], Message[float]], tuple[int, float]] = lambda state, next_msg: (
-        state[0] + 1, state[1] + next_msg.data)
-    # reduce_to_count_and_total: Callable[[List[Message[float]]], Tuple[int, float]] = lambda collected_events: reduce(
-    #     reducer_fn, collected_events, (0, 0))
+    # async def processor(live_source: AsyncIterable[Message[float]], periodStream: AsyncIterable[int]) ->  AsyncIterable[Message[float]]:
+        # window_start_ns = time.time_ns()
+        # counter = dict()
+        # total = dict()
+        # async for period in periodStream:
+        #     async for message in live_source:
+        #         counter.get(message.currency)
+        #
+        #         counter += 1
+        #         total += message.data
+        #         current_time = time.time_ns()
+        #
+        #         if current_time - window_start_ns >= period:
+        #             counter.clear()
+        #             total.clear()
+        #             yield Message.avg(total / counter, "???", "Local")
 
-    observable_reduce_to_count_and_total: Callable[[Observable[Message[float]]], Observable[Tuple[int, float]]] = \
-        lambda collected_events: collected_events.pipe(ops.reduce(reducer_fn, (0, 0)))
+    return (average_interval_setting
+            .pipe(ops.flat_map_latest(lambda new_period:
+                  (source
+                   .pipe(ops.window_with_time(timedelta(seconds=new_period)),
+                         ops.flat_map(lambda stream:
+                                      stream.pipe(ops.group_by(
+                                          lambda message: message.currency),
+                                                  ops.flat_map(lambda
+                                                                   gstream: calculate_avg_price(
+                                                      gstream, gstream.key))))
+                         ))
+                  )))
 
-    calculate_avg: Callable[[tuple[int, float]], Any] = lambda result: result[1] / result[0]
 
-    return average_interval_setting.pipe(
-        ops.start_with(30),
-        ops.map(lambda interval_setting:
-                source.pipe(ops.window_with_time(interval_setting),
-                            ops.flat_map(lambda window: window.pipe(
-                                ops.group_by(lambda msg: msg.currency),
-                                ops.flat_map(lambda
-                                                 groped_messages_obs: groped_messages_obs.pipe(
-                                    observable_reduce_to_count_and_total,
-                                    ops.map(calculate_avg),
-                                    ops.map(lambda avg: Message.avg(avg,
-                                                                    groped_messages_obs.key,
-                                                                    "Local"))))
-                            )))),
-        ops.switch_latest())
+
+def calculate_avg_price(elements_observer_during_period: Observable[Message[float]], currency: str) -> Observable[Message[float]]:
+    def calc(state: Tuple[int, float], message: Message[float]) -> Tuple[int, float]:
+        return tuple(state[0] + 1, state[1] + message.data)
+
+    return (elements_observer_during_period
+            .pipe(ops.reduce(calc, tuple(0, 0.0)),
+                  ops.map(lambda avg: Message.avg(avg[1] / avg[0], currency, "Local"))))
+
+

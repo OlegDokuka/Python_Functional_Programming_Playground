@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
+from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Callable, Generic, TypeVar
 
 T = TypeVar('T')
@@ -39,7 +40,7 @@ def do_math(input) -> int:
     return input * input
 
 if __name__ == '__main__':
-    executer = ProcessPoolExecutor(max_workers=12)
+    executer = ThreadPoolExecutor(max_workers=12)
     # future_result: Future[int] = executer.submit(do_math, 2)
 
 

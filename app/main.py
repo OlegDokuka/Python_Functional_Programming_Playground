@@ -24,7 +24,7 @@ define("port", default=8080, help="run on the given port", type=int)
 class Application(tornado.web.Application):
     def __init__(self):
         inbound_msg = Subject()  # through this subject clients may send tick size configuration changes
-        outbound_msg = ReplaySubject(20)  # cache 20 last messages
+        outbound_msg = ReplaySubject[Message[Any]](20)  # cache 20 last messages
         handlers = [(r"/", MainHandler),
                     (r"/stream", StreamSocketHandler, {'inbound_msg': inbound_msg, 'outbound_msg': outbound_msg})]
         settings = dict(

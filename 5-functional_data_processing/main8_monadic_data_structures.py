@@ -2,7 +2,6 @@ from abc import abstractmethod
 from functools import partial
 from typing import TypeVar, Generic, Callable, Any, Tuple, Iterable, Self, AnyStr
 
-zip
 
 T = TypeVar("T")
 R = TypeVar("R", covariant=True)
@@ -62,11 +61,14 @@ class Nothing(Optional[T]):
     def get(self):
         raise Exception("Nothing")
 
+def abc(input: int) -> bool:
+    return isinstance(input, str)
 
 if __name__ == '__main__':
     o = Optional.of(123) \
         .map(str) \
-        .map(lambda input: isinstance(input, str)) \
-        .zip_with(Optional.of("312"))
+        .map(abc) \
+        .zip_with(Optional.of("312")) \
+    .
 
     if o.is_present(): print(o.get())

@@ -19,16 +19,17 @@ def worker2(id):
     start = time.time_ns()
     print(f"[{id}] starting")
     res = 0
-    for i in range(100000):
+    for i in range(1000000):
         res += i
-        # print(f"[{id}] {res}")
+        print(f"[{id}] {res}")
     print(f"[{id}] done calc {res} time taken {(time.time_ns() - start) / 1000000} ms")
 
 
 if __name__ == '__main__':
+    counter+=1
     start = time.time_ns()
-    t1 = Process(target=worker, args=(1,))
-    t2 = Process(target=worker, args=(2,))
+    t1 = Process(target=worker2, args=(1,))
+    t2 = Process(target=worker2, args=(2,))
     t1.start()
     t2.start()
     print(f"processes allocated it took {(time.time_ns() - start) / 1000000} ms")

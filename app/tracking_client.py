@@ -1,31 +1,36 @@
 import asyncio
-from concurrent.futures import Future
-from typing import Union, Any, Coroutine
+import logging
+from asyncio import AbstractEventLoop
+from typing import Union, Any, Optional
 
 import reactivex
 import socketio
 from reactivex import Observable
-from reactivex import create
-from reactivex.abc import ObserverBase
-from reactivex import operators as ops
+from reactivex.abc import ObserverBase, DisposableBase, SchedulerBase
 from reactivex.disposable import Disposable
 from reactivex.scheduler.eventloop import AsyncIOScheduler
 
 from app.unpackers import unpack_trade, unpack_price
 
-
-def connect(subscription_loop: asyncio.AbstractEventLoop) -> Observable[dict[str, Union[str, float]]]:
-    def on_subscribe(observer: ObserverBase[dict[str, Union[str, float]]], scheduler):
-        task: Future[None] = asyncio.run_coroutine_threadsafe(_connect_to_cryptocompare(observer), loop=subscription_loop)
-
-        return Disposable(lambda: print(task.cancel()))  # type: ignore
-    return create(on_subscribe).pipe(ops.subscribe_on(AsyncIOScheduler(subscription_loop)))
+logging.basicConfig(level=logging.DEBUG)
 
 
-async def _connect_to_cryptocompare(observer: ObserverBase[dict[str, Union[str, float]]]):
-    sio = socketio.AsyncClient()
+def connect(loop: asyncio.AbstractEventLoop) -> Observable[dict[str, Union[str, float]]]:
+    def __sub(observer: Observable[dict[str, Union[str, float]]], scheduler: Optional[SchedulerBase]) -> DisposableBase:
+        task = asyncio.run_coroutine_threadsafe(subscription(observer), loop)
 
-    @sio.on("m")
+        # noinspection PyTypeChecker
+        return Disposable(action=task.cancel)
+
+
+
+
+    return reactivex.create(__sub)
+
+
+async def subscription(observer: ObserverBase[dict[str, Union[str, float]]]):
+    sio = socketio.AsyncClient(logger=True)
+
     def handle_message(message: str):
         message_type = message[0: message.index("~")]
         try:
@@ -38,34 +43,27 @@ async def _connect_to_cryptocompare(observer: ObserverBase[dict[str, Union[str, 
         except Exception as e:
             pass
 
-    await sio.connect("https://streamer.cryptocompare.com", transports='websocket')
+    sio.on("m", handler=handle_message)
+
+    await sio.connect("https://streamer.cryptocompare.com", transports=["websocket"])
     await sio.emit("SubAdd", data={"subs": ["5~CCCAGG~BTC~USD", "0~Coinbase~BTC~USD", "0~Cexio~BTC~USD"]})
 
     try:
         await sio.wait()
-        observer.on_completed()
     except asyncio.CancelledError:
-        print("disconnecting")
         await sio.disconnect()
-        print("disconnected")
+        observer.on_completed()
     except Exception as e:
-        print("disconnecting")
         await sio.disconnect()
         observer.on_error(e)
-        print("disconnected")
 
 
-async def await_and_cancel():
-    disposable = connect(asyncio.get_running_loop()).subscribe(on_next=print)
-    await asyncio.sleep(5)
-    print("cancelling task")
-
-    disposable.dispose()
 
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
+    loop: AbstractEventLoop = asyncio.new_event_loop()
 
-    loop.create_task(await_and_cancel())
+    connect(loop).subscribe(on_next=print, scheduler=AsyncIOScheduler(loop=loop))
 
+    print("Starting")
     loop.run_forever()

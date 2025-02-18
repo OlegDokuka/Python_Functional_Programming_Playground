@@ -2,14 +2,15 @@ import asyncio
 
 import aiohttp
 import reactivex
+from aiohttp import TCPConnector
 from reactivex import operators as ops, Observable
 from reactivex.abc import ObserverBase
 from reactivex.disposable import Disposable
 
 
 async def fetch_data():
-    async with aiohttp.ClientSession() as session:
-        async with session.get('https://api.github.com/events') as resp:
+    async with aiohttp.ClientSession(base_url='https://api.github.com', connector=TCPConnector(ssl=False)) as session:
+        async with session.get('/events') as resp:
             return await resp.json()
 
 
@@ -37,7 +38,6 @@ def main(loop):
 
     (source.pipe(
         ops.flat_map(prefetch_data),
-        ops.observe_on()
 
     ).subscribe(on_next=print))
 

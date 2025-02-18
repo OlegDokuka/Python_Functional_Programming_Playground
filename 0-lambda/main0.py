@@ -1,12 +1,17 @@
 # write fn
-from typing import Callable, Any
+from typing import Callable, Any, List
 
-def sum(val_1: int, val_2: int) -> int:
-    return val_1 + val_2
+def sum(list : List[int]) -> int:
+    res =list[0] + list[1]
+    list.insert(0, res)
+    return res
 
 
 lambda_sum: Callable[[int, int], int] = lambda x, y: x + y
 
 if __name__ == '__main__':
-    print(sum(1, 2))
+    list = [1, 2]
+    print(sum(list))
+    print(sum(list))
+    print(sum(list))
     print(lambda_sum(1, 2))

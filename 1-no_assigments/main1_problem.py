@@ -20,11 +20,7 @@ def square_impure_2(x: list[int]) -> list[int]:
 # refactor me to functional
 
 def square(x: list[int]) -> list[int]:
-    res = [] #assignment
-    for index in range(len(x)):
-        res.append(x[index] ** 2)
-
-    return res
+    return [value ** 2 for value in x]
 
 
 if __name__ == '__main__':
@@ -33,5 +29,5 @@ if __name__ == '__main__':
     # print(square_impure_1([1, 2, 3]))
 
     arr = [1, 2, 3]
-    print(square_impure_2(arr))
-    print(square_impure_2(arr))
+    print(square(arr))
+    print(square(arr))
